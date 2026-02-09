@@ -1,3 +1,6 @@
 node_modules/
 .env
 .next-dev
+prisma/dev.db
+prisma/dev.db-shm
+prisma/dev.db-wal
