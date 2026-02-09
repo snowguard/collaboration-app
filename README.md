@@ -1,6 +1,6 @@
 # Collaboration Chat Web App
 
-Slack-like collaboration messaging web app with invitation-only signup, local DB persistence, authenticated chat, message search, and shared-links view.
+Collaboration messaging web app with invitation-only signup, local DB persistence, authenticated chat, message search, and shared-links view.
 
 ## Features
 
@@ -207,3 +207,10 @@ docker compose -f docker-compose.turn.yml down
 
 - Username: `localturn`
 - Password: `localturnpass`
+
+## License
+
+This project is licensed under the Apache License, Version 2.0.
+
+- Full license text: `LICENSE`
+- Required notices: `NOTICE`
