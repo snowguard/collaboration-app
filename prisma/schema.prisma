@@ -1,0 +1,223 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+enum ThreadMemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum CallStatus {
+  ACTIVE
+  ENDED
+}
+
+enum MeetingTranscriptStatus {
+  ACTIVE
+  COMPLETED
+}
+
+enum MeetingQueueJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum MeetingQueueJobType {
+  GENERATE_NOTE
+}
+
+model User {
+  id               String         @id @default(cuid())
+  email            String         @unique
+  name             String
+  passwordHash     String
+  role             Role           @default(USER)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  sessions         Session[]
+  sentMessages     Message[]      @relation("SentMessages")
+  memberships      ThreadMember[]
+  createdInvites   Invitation[]   @relation("CreatedInvitations")
+  acceptedInvite   Invitation?    @relation("AcceptedInvitation")
+  startedCalls     CallSession[]  @relation("StartedCalls")
+  callParticipants CallParticipant[]
+  meetingTranscripts MeetingTranscript[] @relation("TranscriptCreatedBy")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Invitation {
+  id            String    @id @default(cuid())
+  code          String    @unique
+  email         String
+  invitedById   String
+  usedById      String?   @unique
+  expiresAt     DateTime?
+  usedAt        DateTime?
+  createdAt     DateTime  @default(now())
+  invitedBy     User      @relation("CreatedInvitations", fields: [invitedById], references: [id], onDelete: Cascade)
+  usedBy        User?     @relation("AcceptedInvitation", fields: [usedById], references: [id])
+
+  @@index([email, code])
+}
+
+model Thread {
+  id          String         @id @default(cuid())
+  title       String?
+  isDirect    Boolean        @default(true)
+  archivedAt  DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  members     ThreadMember[]
+  messages    Message[]
+  messageLinks MessageLink[]
+  calls       CallSession[]
+  meetingTranscripts MeetingTranscript[]
+}
+
+model ThreadMember {
+  id        String   @id @default(cuid())
+  threadId  String
+  userId    String
+  role      ThreadMemberRole @default(MEMBER)
+  createdAt DateTime @default(now())
+  thread    Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([threadId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id         String        @id @default(cuid())
+  threadId   String
+  senderId   String
+  body       String
+  createdAt  DateTime      @default(now())
+  thread     Thread        @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender     User          @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  links      MessageLink[]
+
+  @@index([threadId, createdAt])
+}
+
+model MessageLink {
+  id         String   @id @default(cuid())
+  messageId  String
+  threadId   String
+  url        String
+  createdAt  DateTime @default(now())
+  message    Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  thread     Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, createdAt])
+}
+
+model CallSession {
+  id           String            @id @default(cuid())
+  threadId     String
+  startedById  String
+  status       CallStatus        @default(ACTIVE)
+  startedAt    DateTime          @default(now())
+  endedAt      DateTime?
+  thread       Thread            @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  startedBy    User              @relation("StartedCalls", fields: [startedById], references: [id], onDelete: Cascade)
+  participants CallParticipant[]
+  meetingTranscripts MeetingTranscript[]
+
+  @@index([threadId, status, startedAt])
+}
+
+model CallParticipant {
+  id        String      @id @default(cuid())
+  callId    String
+  userId    String
+  joinedAt  DateTime    @default(now())
+  leftAt    DateTime?
+  call      CallSession @relation(fields: [callId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([callId, userId])
+  @@index([userId, joinedAt])
+}
+
+model MeetingTranscript {
+  id               String                 @id @default(cuid())
+  sessionId        String                 @unique
+  threadId         String
+  callId           String?
+  createdById      String
+  meetingTitle     String?
+  transcriptFilePath String
+  reportFilePath   String?
+  firstChunkAt     DateTime               @default(now())
+  lastChunkAt      DateTime               @default(now())
+  chunkCount       Int                    @default(0)
+  status           MeetingTranscriptStatus @default(ACTIVE)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  thread           Thread                 @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  call             CallSession?           @relation(fields: [callId], references: [id], onDelete: SetNull)
+  createdBy        User                   @relation("TranscriptCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  queueJobs        MeetingQueueJob[]
+  note             MeetingNote?
+
+  @@index([threadId, createdAt])
+  @@index([callId, createdAt])
+}
+
+model MeetingQueueJob {
+  id             String              @id @default(cuid())
+  transcriptId   String
+  type           MeetingQueueJobType @default(GENERATE_NOTE)
+  status         MeetingQueueJobStatus @default(PENDING)
+  attempts       Int                 @default(0)
+  maxAttempts    Int                 @default(10)
+  availableAt    DateTime            @default(now())
+  lockedAt       DateTime?
+  lastError      String?
+  payloadJson    String?
+  dedupeKey      String?             @unique
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  transcript     MeetingTranscript   @relation(fields: [transcriptId], references: [id], onDelete: Cascade)
+
+  @@index([status, availableAt, createdAt])
+  @@index([transcriptId, createdAt])
+}
+
+model MeetingNote {
+  id             String            @id @default(cuid())
+  transcriptId   String            @unique
+  sourceProvider String
+  summary        String
+  actionItemsJson String
+  reportFilePath String
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  transcript     MeetingTranscript @relation(fields: [transcriptId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+}
