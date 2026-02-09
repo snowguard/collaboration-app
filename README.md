@@ -74,13 +74,6 @@ npm run prisma:seed
 npm run dev
 ```
 
-## Repository Hygiene
-
-Do not commit local SQLite database files. They are machine-specific and can leak local data.
-
-- Ignored files: `prisma/dev.db`, `prisma/dev.db-shm`, `prisma/dev.db-wal`
-- If you accidentally staged one, unstage it before committing.
-
 ### Local Transcription Backend
 
 Default backend:
