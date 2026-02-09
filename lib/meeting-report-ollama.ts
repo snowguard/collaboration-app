@@ -46,7 +46,7 @@ export async function buildMeetingReportWithOllama(transcript: string) {
           {
             role: "system",
             content:
-              "You create concise meeting reports. Return valid JSON only with keys: summary (string), actionItems (array of strings)."
+              "You create concise meeting reports. You find ation items precisely with who needs to do what by when. Return valid JSON only with keys: summary (string), actionItems (array of strings)."
           },
           {
             role: "user",
